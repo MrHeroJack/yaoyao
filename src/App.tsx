@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import './index.css'
 
 // 时间轴的核心日期：2024-03-27（女儿出生）
@@ -12,6 +12,17 @@ interface ImageItem {
   alt: string
   file?: File
   filter?: string
+}
+
+// 时间轴事件接口定义
+interface TimelineEvent {
+  id: string
+  date: string
+  title: string
+  content: string
+  tags: string[]
+  isHighlight?: boolean
+  images: ImageItem[]
 }
 
 // 管理员密码（实际项目中应该使用更安全的认证方式）
@@ -333,13 +344,17 @@ function TimelineItem({
   onImageAdd,
   onImageDelete,
   isAuthenticated,
-  onAuthRequest
+  onAuthRequest,
+  onEdit,
+  onDelete
 }: {
   event: typeof initialEvents[number] & { images: ImageItem[] }
   onImageAdd: (eventId: string, images: ImageItem[]) => void
   onImageDelete: (eventId: string, imageId: string) => void
   isAuthenticated: boolean
   onAuthRequest: () => void
+  onEdit: (event: typeof initialEvents[number] & { images: ImageItem[] }) => void
+  onDelete: (eventId: string) => void
 }) {
   const { id, date, title, content, tags, images, isHighlight } = event
 
@@ -356,7 +371,7 @@ function TimelineItem({
       }}
     >
       <motion.div
-        className="card"
+        className="timeline-card"
         whileHover={{ 
           y: -8, 
           scale: 1.02,
@@ -370,6 +385,27 @@ function TimelineItem({
           onAuthRequest={onAuthRequest}
         />
         
+        {isAuthenticated && (
+          <>
+            <div 
+              className="edit-icon-button"
+              onClick={() => onEdit(event)}
+            >
+              <span className="icon">✏️</span>
+            </div>
+            <div 
+              className="delete-icon-button"
+              onClick={() => {
+                if (window.confirm('确定要删除这个事件吗？')) {
+                  onDelete(event.id)
+                }
+              }}
+            >
+              <span className="icon">🗑️</span>
+            </div>
+          </>
+        )}
+        
         <div className="meta">
           <strong>{date}</strong>
           <span>·</span>
@@ -378,12 +414,7 @@ function TimelineItem({
           ))}
           {isHighlight && (
             <motion.span 
-              className="badge"
-              style={{ 
-                background: 'rgba(255, 107, 107, 0.2)', 
-                color: '#ff6b6b',
-                border: '1px solid rgba(255, 107, 107, 0.3)'
-              }}
+              className="highlight-badge"
               animate={{ 
                 scale: [1, 1.05, 1],
                 opacity: [0.8, 1, 0.8]
@@ -415,9 +446,31 @@ function TimelineItem({
 }
 
 export default function App() {
-  const [events, setEvents] = useState(initialEvents)
+  const [events, setEvents] = useState<TimelineEvent[]>(initialEvents)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  // 添加代码点状背景
+  useEffect(() => {
+    const codeDots = document.createElement('div')
+    codeDots.className = 'code-dots'
+    document.body.appendChild(codeDots)
+    
+    return () => {
+      document.body.removeChild(codeDots)
+    }
+  }, [])
+  const [showAddEventForm, setShowAddEventForm] = useState(false)
+  const [newEvent, setNewEvent] = useState({
+    date: '',
+    title: '',
+    content: '',
+    tags: '',
+    isHighlight: false
+  })
+  const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
 
   const handleImageAdd = (eventId: string, newImages: ImageItem[]) => {
     setEvents(prevEvents => 
@@ -441,6 +494,7 @@ export default function App() {
 
   const handleAuth = () => {
     setIsAuthenticated(true)
+    setIsAuthModalOpen(false)
     // 在实际应用中，这里应该设置一个过期时间
     setTimeout(() => {
       setIsAuthenticated(false)
@@ -448,8 +502,90 @@ export default function App() {
   }
 
   const handleAuthRequest = () => {
-    setShowAuthModal(true)
+    setIsAuthModalOpen(true)
   }
+
+  const handleAddEvent = () => {
+    if (!newEvent.date || !newEvent.title || !newEvent.content) return
+    
+    const event: TimelineEvent = {
+      id: editingEventId || Date.now().toString(),
+      date: newEvent.date,
+      title: newEvent.title,
+      content: newEvent.content,
+      tags: newEvent.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      isHighlight: newEvent.isHighlight,
+      images: editingEventId 
+        ? events.find(e => e.id === editingEventId)?.images || [] 
+        : []
+    }
+    
+    if (editingEventId) {
+      // Update existing event
+      setEvents(prevEvents => 
+        prevEvents.map(e => e.id === editingEventId ? event : e)
+      )
+    } else {
+      // Add new event
+      setEvents(prevEvents => [...prevEvents, event])
+    }
+    
+    setNewEvent({
+      date: '',
+      title: '',
+      content: '',
+      tags: '',
+      isHighlight: false
+    })
+    setEditingEventId(null)
+    setShowAddEventForm(false)
+  }
+
+  const handleDeleteEvent = (eventId: string) => {
+    setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId))
+  }
+
+  const handleEditEvent = (event: TimelineEvent) => {
+    setNewEvent({
+      date: event.date,
+      title: event.title,
+      content: event.content,
+      tags: event.tags.join(', '),
+      isHighlight: !!event.isHighlight
+    })
+    setEditingEventId(event.id)
+    setShowAddEventForm(true)
+  }
+
+  const sortedEvents = [...events].sort((a, b) => {
+    const dateA = new Date(a.date).getTime()
+    const dateB = new Date(b.date).getTime()
+    return sortBy === 'asc' ? dateA - dateB : dateB - dateA
+  })
+  
+  const filteredEvents = sortedEvents.filter(event => {
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch = 
+        event.title.toLowerCase().includes(term) ||
+        event.content.toLowerCase().includes(term) ||
+        event.tags.some(tag => tag.toLowerCase().includes(term))
+      if (!matchesSearch) return false
+    }
+    
+    // Tag filter
+    if (selectedTag && !event.tags.includes(selectedTag)) {
+      return false
+    }
+    
+    return true
+  })
+  
+  // Get all unique tags
+  const allTags = Array.from(
+    new Set(events.flatMap(event => event.tags))
+  ).sort()
 
   return (
     <div className="container">
@@ -461,15 +597,19 @@ export default function App() {
           transition={{ duration: 0.8 }}
         >
           <div className="logo" />
-          <h1>我们的欢乐时光</h1>
+          <h1>&lt;我们的欢乐时光 /&gt;</h1>
         </motion.div>
+        <div className="code-tabs">
+          <div className="code-tab active">Timeline.tsx</div>
+          <div className="code-tab">Events.json</div>
+        </div>
         <motion.p 
           className="subtitle"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.8 }}
         >
-          用一条温柔的时间轴，记录一家人的小确幸与大事件
+          <span className="code-comment">// </span>用一条温柔的时间轴，记录一家人的小确幸与大事件
         </motion.p>
         {isAuthenticated && (
           <motion.div 
@@ -477,19 +617,152 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            🔓 管理员模式已激活
+            <span className="code-comment">/* </span>🔓 管理员模式已激活<span className="code-comment"> */</span>
           </motion.div>
+        )}
+        {isAuthenticated && (
+          <motion.button
+            className="add-event-button"
+            onClick={() => setShowAddEventForm(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="code-function">function</span> 添加新事件() {}
+            </motion.button>
         )}
       </header>
 
+      {/* 添加事件表单 */}
+      <AnimatePresence>
+        {showAddEventForm && (
+          <motion.div
+            className="add-event-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <h3>{editingEventId ? '编辑事件' : '添加新事件'}</h3>
+            <div className="form-group">
+              <label>日期:</label>
+              <input
+                type="date"
+                value={newEvent.date}
+                onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
+              />
+            </div>
+            <div className="form-group">
+              <label>标题:</label>
+              <input
+                type="text"
+                value={newEvent.title}
+                onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                placeholder="请输入事件标题"
+              />
+            </div>
+            <div className="form-group">
+              <label>内容:</label>
+              <textarea
+                value={newEvent.content}
+                onChange={(e) => setNewEvent({...newEvent, content: e.target.value})}
+                placeholder="请输入事件内容"
+              />
+            </div>
+            <div className="form-group">
+              <label>标签 (用逗号分隔):</label>
+              <input
+                type="text"
+                value={newEvent.tags}
+                onChange={(e) => setNewEvent({...newEvent, tags: e.target.value})}
+                placeholder="例如: 纪念日, 旅行, 节日"
+              />
+            </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={newEvent.isHighlight}
+                  onChange={(e) => setNewEvent({...newEvent, isHighlight: e.target.checked})}
+                />
+                重要时刻
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="cancel-button" onClick={() => {
+                setShowAddEventForm(false)
+                setEditingEventId(null)
+              }}>
+                取消
+              </button>
+              <button className="submit-button" onClick={handleAddEvent}>
+                {editingEventId ? '更新事件' : '添加事件'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 排序控件 */}
+      <div className="controls">
+        <div className="sort-controls">
+          <span>排序:</span>
+          <button 
+            className={sortBy === 'asc' ? 'active' : ''}
+            onClick={() => setSortBy('asc')}
+          >
+            时间正序
+          </button>
+          <button 
+            className={sortBy === 'desc' ? 'active' : ''}
+            onClick={() => setSortBy('desc')}
+          >
+            时间倒序
+          </button>
+        </div>
+        
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="搜索事件..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+      </div>
+      
+      {/* 标签过滤器 */}
+      <div className="tag-filter">
+        <button 
+          className={!selectedTag ? 'active' : ''}
+          onClick={() => setSelectedTag(null)}
+        >
+          全部
+        </button>
+        {allTags.map(tag => (
+          <button
+            key={tag}
+            className={selectedTag === tag ? 'active' : ''}
+            onClick={() => setSelectedTag(tag)}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+
       <section className="timeline-wrapper">
+        <div className="code-line-numbers">
+          {filteredEvents.map((_, index) => (
+            <div key={index} className="code-line-number">{index + 1}</div>
+          ))}
+        </div>
         <motion.div 
           className="timeline"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5, duration: 1 }}
         >
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <TimelineItem 
               key={event.id} 
               event={event}
@@ -497,6 +770,8 @@ export default function App() {
               onImageDelete={handleImageDelete}
               isAuthenticated={isAuthenticated}
               onAuthRequest={handleAuthRequest}
+              onEdit={handleEditEvent}
+              onDelete={handleDeleteEvent}
             />
           ))}
         </motion.div>
@@ -517,8 +792,8 @@ export default function App() {
       </motion.footer>
 
       <AuthModal 
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
         onAuth={handleAuth}
       />
     </div>
