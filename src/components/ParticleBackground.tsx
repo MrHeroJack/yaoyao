@@ -115,11 +115,13 @@ const ParticleBackground = () => {
     const connectDistance = 100;
 
     // 动画循环
+    let animationFrameId = 0;
+
     const animate = () => {
       if (!ctx || !canvas) return;
-      
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       // 更新和绘制粒子
       particles.forEach(particle => {
         particle.update();
@@ -145,16 +147,17 @@ const ParticleBackground = () => {
         }
       }
 
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
     };
 
-    animate();
+    animationFrameId = requestAnimationFrame(animate);
 
     // 清理事件监听器
     return () => {
       window.removeEventListener('resize', resizeCanvas);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseleave', handleMouseLeave);
+      cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
