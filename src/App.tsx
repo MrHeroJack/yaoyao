@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ParticleBackground from './components/ParticleBackground'
 import BioTimeline from './components/BioTimeline'
 import MemoryCapsule from './components/MemoryCapsule'
@@ -86,7 +86,15 @@ const initialEvents: TimelineEvent[] = [
   },
 ]
 
-function AuthModal({ 
+const INITIAL_EVENT_STATE = {
+  date: '',
+  title: '',
+  content: '',
+  tags: '',
+  isHighlight: false
+}
+
+function AuthModal({
   isOpen, 
   onClose, 
   onAuth 
@@ -161,17 +169,38 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [showAddEventForm, setShowAddEventForm] = useState(false)
-  const [newEvent, setNewEvent] = useState({
-    date: '',
-    title: '',
-    content: '',
-    tags: '',
-    isHighlight: false
-  })
+  const [newEvent, setNewEvent] = useState(() => ({ ...INITIAL_EVENT_STATE }))
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const logoutTimer = useRef<number | null>(null)
+
+  const clearLogoutTimer = () => {
+    if (logoutTimer.current) {
+      window.clearTimeout(logoutTimer.current)
+      logoutTimer.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearLogoutTimer()
+    }
+  }, [])
+
+  const resetNewEvent = () => {
+    setNewEvent({ ...INITIAL_EVENT_STATE })
+  }
+
+  const handleLogout = () => {
+    clearLogoutTimer()
+    setIsAuthenticated(false)
+    setIsAuthModalOpen(false)
+    setShowAddEventForm(false)
+    setEditingEventId(null)
+    resetNewEvent()
+  }
 
   const handleImageDelete = (eventId: string, imageId: string) => {
     setEvents(prevEvents => 
@@ -184,26 +213,39 @@ export default function App() {
   }
 
   const handleAuth = () => {
+    clearLogoutTimer()
     setIsAuthenticated(true)
     setIsAuthModalOpen(false)
     // 在实际应用中，这里应该设置一个过期时间
-    setTimeout(() => {
+    logoutTimer.current = window.setTimeout(() => {
       setIsAuthenticated(false)
+      setShowAddEventForm(false)
+      setEditingEventId(null)
+      resetNewEvent()
     }, 30 * 60 * 1000) // 30分钟后自动退出
   }
 
   const handleAddEvent = () => {
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true)
+      return
+    }
     if (!newEvent.date || !newEvent.title || !newEvent.content) return
-    
+
+    const sanitizedTags = newEvent.tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag)
+
     const event: TimelineEvent = {
       id: editingEventId || Date.now().toString(),
       date: newEvent.date,
       title: newEvent.title,
       content: newEvent.content,
-      tags: newEvent.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      tags: sanitizedTags,
       isHighlight: newEvent.isHighlight,
-      images: editingEventId 
-        ? events.find(e => e.id === editingEventId)?.images || [] 
+      images: editingEventId
+        ? events.find(e => e.id === editingEventId)?.images || []
         : []
     }
     
@@ -217,13 +259,7 @@ export default function App() {
       setEvents(prevEvents => [...prevEvents, event])
     }
     
-    setNewEvent({
-      date: '',
-      title: '',
-      content: '',
-      tags: '',
-      isHighlight: false
-    })
+    resetNewEvent()
     setEditingEventId(null)
     setShowAddEventForm(false)
   }
@@ -244,35 +280,43 @@ export default function App() {
     setShowAddEventForm(true)
   }
 
-  const sortedEvents = [...events].sort((a, b) => {
-    const dateA = new Date(a.date).getTime()
-    const dateB = new Date(b.date).getTime()
-    return sortBy === 'asc' ? dateA - dateB : dateB - dateA
-  })
-  
-  const filteredEvents = sortedEvents.filter(event => {
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      const matchesSearch = 
-        event.title.toLowerCase().includes(term) ||
-        event.content.toLowerCase().includes(term) ||
-        event.tags.some(tag => tag.toLowerCase().includes(term))
-      if (!matchesSearch) return false
-    }
-    
-    // Tag filter
-    if (selectedTag && !event.tags.includes(selectedTag)) {
-      return false
-    }
-    
-    return true
-  })
-  
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const dateA = new Date(a.date).getTime()
+      const dateB = new Date(b.date).getTime()
+      return sortBy === 'asc' ? dateA - dateB : dateB - dateA
+    })
+  }, [events, sortBy])
+
+  const filteredEvents = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    return sortedEvents.filter(event => {
+      if (term) {
+        const matchesSearch =
+          event.title.toLowerCase().includes(term) ||
+          event.content.toLowerCase().includes(term) ||
+          event.tags.some(tag => tag.toLowerCase().includes(term))
+        if (!matchesSearch) return false
+      }
+
+      if (selectedTag && !event.tags.includes(selectedTag)) {
+        return false
+      }
+
+      return true
+    })
+  }, [sortedEvents, searchTerm, selectedTag])
+
   // Get all unique tags
-  const allTags = Array.from(
-    new Set(events.flatMap(event => event.tags))
-  ).sort()
+  const allTags = useMemo(() => {
+    return Array.from(new Set(events.flatMap(event => event.tags))).sort()
+  }, [events])
+
+  const handleCancelForm = () => {
+    setShowAddEventForm(false)
+    setEditingEventId(null)
+    resetNewEvent()
+  }
 
   return (
     <div className="container">
@@ -293,7 +337,7 @@ export default function App() {
           <div className="code-tab active">Timeline.tsx</div>
           <div className="code-tab">Events.json</div>
         </div>
-        <motion.p 
+        <motion.p
           className="subtitle"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -301,8 +345,34 @@ export default function App() {
         >
           <span className="code-comment">// </span>用一条温柔的时间轴，记录一家人的小确幸与大事件
         </motion.p>
+        <motion.div
+          className="auth-controls"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+        >
+          {!isAuthenticated ? (
+            <motion.button
+              className="auth-button"
+              onClick={() => setIsAuthModalOpen(true)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <span className="code-function">const</span> 管理员 = 登录()
+            </motion.button>
+          ) : (
+            <motion.button
+              className="auth-button secondary"
+              onClick={handleLogout}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <span className="code-function">return</span> 退出管理员模式
+            </motion.button>
+          )}
+        </motion.div>
         {isAuthenticated && (
-          <motion.div 
+          <motion.div
             className="auth-status"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -318,7 +388,7 @@ export default function App() {
             whileTap={{ scale: 0.95 }}
           >
             <span className="code-function">function</span> 添加新事件() {}
-            </motion.button>
+          </motion.button>
         )}
       </header>
 
@@ -378,10 +448,7 @@ export default function App() {
               </label>
             </div>
             <div className="form-actions">
-              <button className="cancel-button" onClick={() => {
-                setShowAddEventForm(false)
-                setEditingEventId(null)
-              }}>
+              <button className="cancel-button" onClick={handleCancelForm}>
                 取消
               </button>
               <button className="submit-button" onClick={handleAddEvent}>
