@@ -91,7 +91,8 @@ const INITIAL_EVENT_STATE = {
   title: '',
   content: '',
   tags: '',
-  isHighlight: false
+  isHighlight: false,
+  images: [] as ImageItem[]
 }
 
 function AuthModal({
@@ -170,6 +171,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [showAddEventForm, setShowAddEventForm] = useState(false)
   const [newEvent, setNewEvent] = useState(() => ({ ...INITIAL_EVENT_STATE }))
+  const [newImageLink, setNewImageLink] = useState('')
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc')
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -191,6 +193,7 @@ export default function App() {
 
   const resetNewEvent = () => {
     setNewEvent({ ...INITIAL_EVENT_STATE })
+    setNewImageLink('')
   }
 
   const handleLogout = () => {
@@ -200,6 +203,30 @@ export default function App() {
     setShowAddEventForm(false)
     setEditingEventId(null)
     resetNewEvent()
+  }
+
+  const handleAddImageLink = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!newImageLink.trim()) return
+
+    const newImage: ImageItem = {
+      id: Date.now().toString(),
+      src: newImageLink,
+      alt: '事件图片'
+    }
+
+    setNewEvent({
+      ...newEvent,
+      images: [...newEvent.images, newImage]
+    })
+    setNewImageLink('')
+  }
+
+  const removeNewEventImage = (imageId: string) => {
+    setNewEvent({
+      ...newEvent,
+      images: newEvent.images.filter(img => img.id !== imageId)
+    })
   }
 
   const handleImageDelete = (eventId: string, imageId: string) => {
@@ -244,9 +271,7 @@ export default function App() {
       content: newEvent.content,
       tags: sanitizedTags,
       isHighlight: newEvent.isHighlight,
-      images: editingEventId
-        ? events.find(e => e.id === editingEventId)?.images || []
-        : []
+      images: newEvent.images
     }
     
     if (editingEventId) {
@@ -274,7 +299,8 @@ export default function App() {
       title: event.title,
       content: event.content,
       tags: event.tags.join(', '),
-      isHighlight: !!event.isHighlight
+      isHighlight: !!event.isHighlight,
+      images: event.images || []
     })
     setEditingEventId(event.id)
     setShowAddEventForm(true)
@@ -447,6 +473,39 @@ export default function App() {
                 重要时刻
               </label>
             </div>
+
+            <div className="form-group">
+              <label>添加图片链接:</label>
+              <div className="image-input-group">
+                <input
+                  type="text"
+                  value={newImageLink}
+                  onChange={(e) => setNewImageLink(e.target.value)}
+                  placeholder="请输入图片URL (例如: https://example.com/image.jpg)"
+                />
+                <button onClick={handleAddImageLink} type="button" className="add-image-btn">
+                  添加
+                </button>
+              </div>
+              
+              {newEvent.images.length > 0 && (
+                <div className="image-preview-list">
+                  {newEvent.images.map(img => (
+                    <div key={img.id} className="image-preview-item">
+                      <img src={img.src} alt={img.alt} />
+                      <button 
+                        type="button" 
+                        className="remove-image-btn"
+                        onClick={() => removeNewEventImage(img.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="form-actions">
               <button className="cancel-button" onClick={handleCancelForm}>
                 取消
@@ -533,7 +592,7 @@ export default function App() {
           <MemoryCapsule 
             title="第一次叫妈妈"
             date="2024-10-10"
-            content="宝宝今天清晰地叫了一声'妈妈'，激动得我眼泪都出来了。"
+            content="宝宝今天清晰地叫出了一声'妈妈'，激动得我眼泪都出来了。"
             images={[
               { id: '4', src: 'https://placehold.co/300x200/0B132B/9D4EDD?text=First+Word', alt: '宝宝说话' }
             ]}

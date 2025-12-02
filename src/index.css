@@ -550,18 +550,108 @@ body {
   margin-top: var(--spacing-md);
 }
 
+/* 表单中的图片输入样式 */
+.image-input-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.image-input-group input {
+  flex: 1;
+}
+
+.add-image-btn {
+  padding: 0 20px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  border: none;
+  border-radius: var(--radius-lg);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.add-image-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(157, 78, 221, 0.4);
+}
+
+.image-preview-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.image-preview-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: var(--transition);
+}
+
+.remove-image-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* 修改：优化展示图片样式 */
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(2, 1fr); /* 改为2列，图片更大 */
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .image-item {
   position: relative;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg); /* 更大的圆角 */
   overflow: hidden;
-  aspect-ratio: 1;
+  aspect-ratio: 4/3; /* 更自然的图片比例 */
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.image-item:hover {
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(157, 78, 221, 0.4);
+}
+
+/* 如果只有一张图片，让它占满整行 */
+.image-grid:has(.image-item:only-child) {
+  grid-template-columns: 1fr;
+}
+
+.image-item:only-child {
+  aspect-ratio: 16/9;
 }
 
 .image-item img {
@@ -569,25 +659,32 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.6s ease;
+}
+
+.image-item:hover img {
+  transform: scale(1.1);
 }
 
 .image-delete-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
-  background: rgba(239, 68, 68, 0.8);
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.9);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   opacity: 0;
   transition: var(--transition);
   border: none;
+  z-index: 20;
+  backdrop-filter: blur(4px);
 }
 
 .image-item:hover .image-delete-btn {
@@ -1326,9 +1423,9 @@ body {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .image-item {
