@@ -1,12 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import ParticleBackground from './components/ParticleBackground'
 import BioTimeline from './components/BioTimeline'
 import MemoryCapsule from './components/MemoryCapsule'
 import GrowthMilestone from './components/GrowthMilestone'
 import './index.css'
 import ImageUploader from './admin/components/ImageUploader'
-
 
 // 图片接口定义
 interface ImageItem {
@@ -130,36 +128,47 @@ function AuthModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="auth-modal-overlay"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="auth-modal-content"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            className="z-card bg-white p-8 w-full max-w-md m-4 border-4 border-z-blue"
+            initial={{ scale: 0.8, opacity: 0, rotate: -5 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
             exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ type: "spring", bounce: 0.5 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3>身份验证</h3>
-            <p>请输入管理员密码以上传照片</p>
-            <form onSubmit={handleSubmit}>
+            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 text-6xl drop-shadow-lg">
+              👮
+            </div>
+            <h3 className="text-3xl font-bold text-center mt-6 mb-2 text-z-blue">身份验证</h3>
+            <p className="text-center text-slate-500 mb-6">请输入管理员密码以继续访问</p>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入密码"
-                className="auth-input"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-z-blue focus:outline-none focus:ring-4 focus:ring-z-blue/20 text-lg"
                 autoFocus
               />
-              {error && <div className="auth-error">{error}</div>}
-              <div className="auth-buttons">
-                <button type="button" onClick={onClose} className="auth-cancel">
+              {error && <div className="text-red-500 text-center font-bold bg-red-100 p-2 rounded-lg">{error}</div>}
+              <div className="flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={onClose} 
+                  className="flex-1 py-3 rounded-full border-2 border-slate-300 font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                >
                   取消
                 </button>
-                <button type="submit" className="auth-submit">
+                <button 
+                  type="submit" 
+                  className="flex-1 py-3 rounded-full bg-z-blue text-white font-bold shadow-lg hover:bg-blue-600 transition-colors transform active:scale-95"
+                >
                   确认
                 </button>
               </div>
@@ -360,116 +369,111 @@ export default function App() {
       exit="exit"
       variants={pageVariants}
       transition={{ duration: 0.5 }}
-      className="min-h-screen relative text-slate-100 overflow-x-hidden"
+      className="min-h-screen relative text-slate-800 overflow-x-hidden"
     >
-      <ParticleBackground />
+      {/* 城市剪影背景 */}
+      <div className="fixed bottom-0 left-0 w-full h-64 bg-repeat-x opacity-10 pointer-events-none z-0" 
+           style={{ 
+             backgroundImage: 'linear-gradient(to top, #000 0%, transparent 100%)',
+             maskImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMCAxMDBWMjBoMTB2ODBoMTBWNTBoMTB2NTBoMTBWMzBoMTB2NzB6IiBmaWxsPSJibGFjayIvPjwvc3ZnPg==")' 
+           }} 
+      />
 
-      {/* 顶部导航栏 - 毛玻璃效果 */}
-      <nav className="fixed top-0 left-0 right-0 z-40 bg-slate-900/40 backdrop-blur-md border-b border-white/10 shadow-lg">
+      {/* 顶部导航栏 - 警徽/自然风格 */}
+      <nav className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b-4 border-z-orange shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-20">
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.05, rotate: -2 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-3 cursor-pointer"
+              className="flex items-center gap-3 cursor-pointer group"
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' })
                 setActiveTab('timeline')
               }}
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <span className="text-lg">👶</span>
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-z-purple to-z-blue flex items-center justify-center shadow-lg border-2 border-white text-2xl relative overflow-hidden group-hover:animate-bounce">
+                🐰
+                <div className="absolute inset-0 bg-white opacity-20 rounded-full animate-pulse"></div>
               </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-200 via-pink-200 to-blue-200 font-display tracking-tight">
+              <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-z-purple to-z-blue font-heading tracking-tight drop-shadow-sm">
                 Yaoyao's Time
               </span>
             </motion.div>
             
             {/* 桌面端导航 */}
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-2">
               {[
-                { id: 'timeline', label: '时间轴', icon: '📅' },
+                { id: 'timeline', label: '美好回忆', icon: '🥕' },
                 { id: 'capsule', label: '时光胶囊', icon: '💊' },
-                { id: 'milestone', label: '成长里程碑', icon: '🏆' }
+                { id: 'milestone', label: '成长记录', icon: '📏' }
               ].map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id as any)}
-                  className={`relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                  className={`relative px-6 py-2 rounded-full text-lg font-bold transition-all duration-300 border-2 ${
                     activeTab === item.id 
-                      ? 'text-white shadow-[0_0_20px_rgba(168,85,247,0.4)]' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-z-green text-white border-z-green-light shadow-lg scale-105' 
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-z-green hover:text-z-green'
                   }`}
                 >
-                  {activeTab === item.id && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-0 bg-gradient-to-r from-purple-600/80 to-pink-600/80 rounded-full -z-10 backdrop-blur-sm"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
                   <span className="flex items-center gap-2">
-                    <span>{item.icon}</span>
+                    <span className="text-xl">{item.icon}</span>
                     {item.label}
                   </span>
                 </button>
               ))}
 
               <motion.button
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => isAuthenticated ? handleLogout() : setIsAuthModalOpen(true)}
-                className={`ml-4 px-4 py-2 rounded-full text-xs font-medium border transition-all duration-300 flex items-center gap-2 ${
+                className={`ml-4 w-12 h-12 rounded-full border-4 flex items-center justify-center shadow-md transition-colors ${
                   isAuthenticated 
-                    ? 'bg-red-500/20 border-red-500/50 text-red-200 hover:bg-red-500/30' 
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                    ? 'bg-red-500 border-red-300 text-white' 
+                    : 'bg-blue-500 border-blue-300 text-white'
                 }`}
               >
-                {isAuthenticated ? '🔒 退出管理' : '🔑 管理员'}
+                {isAuthenticated ? '🔒' : '🔑'}
               </motion.button>
-            </div>
-
-            {/* 移动端菜单按钮 (保留但未实现完整逻辑，暂用简单的) */}
-            <div className="md:hidden">
-               {/* 简化的移动端菜单触发器 */}
             </div>
           </div>
         </div>
       </nav>
 
-      {/* 内容区域 - 增加顶部内边距以避开固定导航栏 */}
-      <main className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-[calc(100vh-4rem)]">
+      {/* 内容区域 */}
+      <main className="pt-28 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-[calc(100vh-4rem)]">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ type: "spring", duration: 0.5 }}
             className="h-full"
           >
             {activeTab === 'timeline' && (
               <div className="space-y-8">
-                 {/* 排序和搜索控件 */}
-                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white/5 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+                 {/* 排序和搜索控件 - 文件夹风格 */}
+                 <div className="z-card p-4 flex flex-col md:flex-row gap-4 justify-between items-center bg-orange-50 border-orange-200">
                     <div className="flex gap-2">
                       <button 
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${sortBy === 'asc' ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                        className={`px-4 py-2 rounded-xl text-lg font-bold transition-all shadow-sm ${sortBy === 'asc' ? 'bg-z-orange text-white transform -translate-y-1' : 'bg-white text-slate-500 border-2 border-slate-100'}`}
                         onClick={() => setSortBy('asc')}
                       >
-                        时间正序
+                        ⬇️ 正序
                       </button>
                       <button 
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${sortBy === 'desc' ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                        className={`px-4 py-2 rounded-xl text-lg font-bold transition-all shadow-sm ${sortBy === 'desc' ? 'bg-z-orange text-white transform -translate-y-1' : 'bg-white text-slate-500 border-2 border-slate-100'}`}
                         onClick={() => setSortBy('desc')}
                       >
-                        时间倒序
+                        ⬆️ 倒序
                       </button>
                     </div>
                     
                     <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                       <button 
-                        className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${!selectedTag ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                        className={`px-4 py-2 rounded-xl text-lg font-bold whitespace-nowrap transition-all shadow-sm ${!selectedTag ? 'bg-z-purple text-white transform -translate-y-1' : 'bg-white text-slate-500 border-2 border-slate-100'}`}
                         onClick={() => setSelectedTag(null)}
                       >
                         全部
@@ -477,7 +481,7 @@ export default function App() {
                       {allTags.map(tag => (
                         <button
                           key={tag}
-                          className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${selectedTag === tag ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                          className={`px-4 py-2 rounded-xl text-lg font-bold whitespace-nowrap transition-all shadow-sm ${selectedTag === tag ? 'bg-z-purple text-white transform -translate-y-1' : 'bg-white text-slate-500 border-2 border-slate-100'}`}
                           onClick={() => setSelectedTag(tag)}
                         >
                           {tag}
@@ -488,10 +492,10 @@ export default function App() {
                     <div className="relative w-full md:w-64">
                       <input
                         type="text"
-                        placeholder="搜索事件..."
+                        placeholder="🔍 搜索记忆..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:border-z-purple focus:ring-4 focus:ring-purple-100 transition-all"
                       />
                     </div>
                  </div>
@@ -501,10 +505,13 @@ export default function App() {
                    <motion.button
                      initial={{ opacity: 0, y: 10 }}
                      animate={{ opacity: 1, y: 0 }}
+                     whileHover={{ scale: 1.02 }}
+                     whileTap={{ scale: 0.98 }}
                      onClick={() => setShowAddEventForm(true)}
-                     className="w-full py-4 rounded-xl border-2 border-dashed border-white/20 text-slate-400 hover:text-white hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex items-center justify-center gap-2"
+                     className="w-full py-6 rounded-3xl border-4 border-dashed border-z-green/40 text-z-green bg-green-50/50 hover:bg-green-100/50 transition-all flex items-center justify-center gap-3 group"
                    >
-                     <span className="text-xl">+</span> 添加新美好时刻
+                     <span className="text-4xl group-hover:rotate-90 transition-transform duration-300">➕</span> 
+                     <span className="text-2xl font-bold">记录新的美好时刻</span>
                    </motion.button>
                  )}
 
@@ -512,71 +519,73 @@ export default function App() {
                  <AnimatePresence>
                   {showAddEventForm && (
                     <motion.div
-                      className="bg-slate-800/80 backdrop-blur-md rounded-2xl p-6 border border-white/10 shadow-xl overflow-hidden"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
+                      className="z-card p-8 bg-white border-4 border-z-purple"
+                      initial={{ opacity: 0, height: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                      exit={{ opacity: 0, height: 0, scale: 0.9 }}
+                      transition={{ type: "spring", bounce: 0.3 }}
                     >
-                      <h3 className="text-xl font-bold mb-6 text-white">{editingEventId ? '编辑事件' : '添加新事件'}</h3>
+                      <h3 className="text-3xl font-bold mb-6 text-z-purple flex items-center gap-3">
+                        {editingEventId ? '✏️ 编辑事件' : '✨ 新的记忆'}
+                      </h3>
                       
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
-                            <label className="block text-sm font-medium text-slate-400 mb-1">日期</label>
+                            <label className="block text-xl font-bold text-slate-600 mb-2">日期</label>
                             <input
                               type="date"
                               value={newEvent.date}
                               onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
-                              className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:border-z-purple text-lg"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-slate-400 mb-1">标题</label>
+                            <label className="block text-xl font-bold text-slate-600 mb-2">标题</label>
                             <input
                               type="text"
                               value={newEvent.title}
                               onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
-                              placeholder="请输入事件标题"
-                              className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                              placeholder="给这段记忆起个名字"
+                              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:border-z-purple text-lg"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-slate-400 mb-1">内容</label>
+                          <label className="block text-xl font-bold text-slate-600 mb-2">内容</label>
                           <textarea
                             value={newEvent.content}
                             onChange={(e) => setNewEvent({...newEvent, content: e.target.value})}
-                            placeholder="请输入事件内容"
+                            placeholder="发生了什么有趣的事情？"
                             rows={4}
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 resize-none"
+                            className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:border-z-purple resize-none text-lg"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-slate-400 mb-1">标签 (用逗号分隔)</label>
+                          <label className="block text-xl font-bold text-slate-600 mb-2">标签 (用逗号分隔)</label>
                           <input
                             type="text"
                             value={newEvent.tags}
                             onChange={(e) => setNewEvent({...newEvent, tags: e.target.value})}
-                            placeholder="例如: 纪念日, 旅行, 节日"
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                            placeholder="例如: 第一次, 搞笑, 惊喜"
+                            className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:border-z-purple text-lg"
                           />
                         </div>
 
-                        <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                        <label className="flex items-center gap-3 text-lg text-slate-600 cursor-pointer p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200 hover:bg-yellow-100 transition-colors">
                           <input
                             type="checkbox"
                             checked={newEvent.isHighlight}
                             onChange={(e) => setNewEvent({...newEvent, isHighlight: e.target.checked})}
-                            className="w-4 h-4 rounded border-white/20 bg-black/20 text-purple-600 focus:ring-purple-500"
+                            className="w-6 h-6 rounded border-slate-300 text-z-orange focus:ring-z-orange"
                           />
-                          设为重要时刻 (高亮显示)
+                          <span>🌟 这是一个超级重要的时刻！(高亮显示)</span>
                         </label>
 
-                        <div className="border-t border-white/10 pt-4 mt-4">
-                          <label className="block text-sm font-medium text-slate-400 mb-2">图片</label>
+                        <div className="border-t-2 border-dashed border-slate-200 pt-6 mt-6">
+                          <label className="block text-xl font-bold text-slate-600 mb-4">照片</label>
                           
                           <div className="flex gap-2 mb-4">
                             <input
@@ -584,15 +593,15 @@ export default function App() {
                               value={newImageLink}
                               onChange={(e) => setNewImageLink(e.target.value)}
                               placeholder="输入图片 URL"
-                              className="flex-1 bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                              className="flex-1 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-700 focus:outline-none focus:border-z-purple"
                             />
-                            <button onClick={handleAddImageLink} type="button" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                            <button onClick={handleAddImageLink} type="button" className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors">
                               添加链接
                             </button>
                           </div>
 
                           {isAuthenticated && (
-                            <div className="mb-4">
+                            <div className="mb-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-100">
                               <ImageUploader
                                 onCompleted={(results) => {
                                   const uploadedImages = results.map(r => ({ id: Date.now().toString() + Math.random(), src: r.url, alt: '事件图片' }))
@@ -605,11 +614,11 @@ export default function App() {
                           {newEvent.images.length > 0 && (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                               {newEvent.images.map(img => (
-                                <div key={img.id} className="relative group aspect-video rounded-lg overflow-hidden bg-black/40">
+                                <div key={img.id} className="relative group aspect-video rounded-xl overflow-hidden border-4 border-white shadow-md transform hover:scale-105 transition-transform">
                                   <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
                                   <button 
                                     type="button" 
-                                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-bold shadow-md"
                                     onClick={() => removeNewEventImage(img.id)}
                                   >
                                     ×
@@ -620,12 +629,18 @@ export default function App() {
                           )}
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                          <button className="px-6 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors" onClick={handleCancelForm}>
+                        <div className="flex justify-end gap-4 pt-6 border-t-2 border-slate-100">
+                          <button 
+                            className="px-8 py-3 rounded-full border-2 border-slate-300 text-slate-500 font-bold hover:bg-slate-100 transition-colors" 
+                            onClick={handleCancelForm}
+                          >
                             取消
                           </button>
-                          <button className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all" onClick={handleAddEvent}>
-                            {editingEventId ? '更新事件' : '发布事件'}
+                          <button 
+                            className="z-btn px-8 py-3 bg-gradient-to-r from-z-purple to-pink-500 text-white font-bold text-lg shadow-lg hover:shadow-purple-500/30" 
+                            onClick={handleAddEvent}
+                          >
+                            {editingEventId ? '💾 保存修改' : '🚀 发布'}
                           </button>
                         </div>
                       </div>
@@ -645,9 +660,9 @@ export default function App() {
             
             {activeTab === 'capsule' && (
               <div className="space-y-8">
-                 <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-2xl p-8 border border-white/5 text-center">
-                    <h2 className="text-2xl font-bold mb-2">时光胶囊</h2>
-                    <p className="text-slate-400">封存珍贵的记忆瞬间</p>
+                 <div className="z-card p-8 bg-gradient-to-br from-purple-100 to-pink-100 border-purple-200 text-center">
+                    <h2 className="text-4xl font-bold mb-2 text-z-purple">💊 时光胶囊</h2>
+                    <p className="text-slate-600 text-xl">封存珍贵的记忆瞬间</p>
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <MemoryCapsule 
@@ -684,9 +699,9 @@ export default function App() {
 
             {activeTab === 'milestone' && (
               <div className="space-y-8">
-                <div className="bg-gradient-to-br from-blue-900/20 to-cyan-900/20 rounded-2xl p-8 border border-white/5 text-center">
-                    <h2 className="text-2xl font-bold mb-2">成长里程碑</h2>
-                    <p className="text-slate-400">记录每一个成长的脚印</p>
+                <div className="z-card p-8 bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-200 text-center">
+                    <h2 className="text-4xl font-bold mb-2 text-blue-600">🏆 成长里程碑</h2>
+                    <p className="text-slate-600 text-xl">记录每一个成长的脚印</p>
                  </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <GrowthMilestone 
@@ -721,8 +736,8 @@ export default function App() {
       </main>
 
       {/* 底部版权 */}
-      <footer className="py-8 text-center text-slate-500 text-sm border-t border-white/5 bg-slate-900/20 backdrop-blur-sm">
-        <p>© {new Date().getFullYear()} Yaoyao's Time. Built with ❤️ for our little angel.</p>
+      <footer className="py-8 text-center text-slate-500 text-lg border-t-2 border-slate-100 bg-white/50 backdrop-blur-sm">
+        <p>© {new Date().getFullYear()} Yaoyao's Time. Built with 🥕 and ❤️.</p>
       </footer>
 
       <AuthModal 
