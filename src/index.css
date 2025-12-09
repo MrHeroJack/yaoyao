@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @import './styles/theme.css';
 /* CSS 变量定义 */
 :root {
