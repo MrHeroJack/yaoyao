@@ -6,22 +6,41 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:ui": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.2",
+    "ali-oss": "^6.21.0",
     "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "framer-motion": "^12.23.12",
+    "qiniu": "^7.14.0",
+    "qiniu-js": "^3.3.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
+    "@types/ali-oss": "^6.16.13",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
+    "msw": "^2.6.7",
+    "playwright": "^1.49.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.12",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.3",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "vitest": "^2.1.4"
   }
 }

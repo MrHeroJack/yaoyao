@@ -1,0 +1,26 @@
+/* 主题切换：应用到 body.theme-zootopia 时启用《疯狂动物城》配色 */
+body.theme-zootopia {
+  --primary: #77C1D4;      /* Judy 蓝绿 */
+  --secondary: #F9A03F;    /* Nick 橙 */
+  --highlight: #F4D06F;    /* 暖黄点缀 */
+  --background: #102A43;   /* 深蓝背景 */
+  --text-primary: #F0F4F8; 
+  --text-secondary: #D9E2EC;
+}
+
+.avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: var(--background);
+  font-weight: 800;
+}
+
+.avatar-judy::before { content: '🐰'; }
+.avatar-nick::before { content: '🦊'; }
+.avatar-bogo::before { content: '🦏'; }
+
