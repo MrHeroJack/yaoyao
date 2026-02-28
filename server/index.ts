@@ -2,14 +2,14 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import crypto from 'crypto'
-import { getQiniuUploadToken } from './utils/qiniu'
-import { getOssPolicySignature } from './utils/oss'
+import { getQiniuUploadToken } from './utils/qiniu.js'
+import { getOssPolicySignature } from './utils/oss.js'
 import {
   createAdminSessionToken,
   getSessionTtlSeconds,
   parseCookieValue,
   verifyAdminSessionToken,
-} from './utils/session'
+} from './utils/session.js'
 
 import { fileURLToPath } from 'url'
 
@@ -106,8 +106,9 @@ app.post('/api/admin/login', (req, res) => {
     return res.status(500).json({ error: 'ADMIN_PASSWORD is not configured' })
   }
 
-  const password = typeof req.body?.password === 'string' ? req.body.password : ''
-  if (!secureEquals(password, configuredPassword)) {
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : ''
+  const expectedPassword = configuredPassword.trim()
+  if (!secureEquals(password, expectedPassword)) {
     return res.status(401).json({ error: 'Invalid password' })
   }
 
