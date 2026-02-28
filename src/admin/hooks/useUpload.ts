@@ -1,32 +1,35 @@
 import { useCallback, useRef, useState } from 'react'
 import { getProvider } from '../storage/providerFactory'
 import type { UploadResult, UploadProgress } from '../storage/IStorageProvider'
+import { resolveUploadResult } from '../storage/resolveUploadResult'
 
 export function useUpload(concurrency = 3) {
-  const provider = getProvider()
   const [progress, setProgress] = useState<Record<string, UploadProgress>>({})
   const [results, setResults] = useState<UploadResult[]>([])
   const queueRef = useRef<File[]>([])
   const runningRef = useRef<number>(0)
 
-  const push = useCallback((files: File[]) => {
-    queueRef.current.push(...files)
-    tick()
-  }, [])
+  const tick = useCallback(async () => {
+    const provider = await getProvider()
 
-  const tick = useCallback(() => {
     while (runningRef.current < concurrency && queueRef.current.length) {
       const file = queueRef.current.shift()!
       runningRef.current += 1
       const id = `${file.name}-${file.size}-${file.lastModified}`
-      Promise.resolve(provider.upload(file, (p) => setProgress((prev) => ({ ...prev, [id]: p }))) as any)
+      const task = provider.upload(file, (p) => setProgress((prev) => ({ ...prev, [id]: p })))
+      resolveUploadResult(task)
         .then((res: UploadResult) => setResults((prev) => [...prev, res]))
         .finally(() => {
           runningRef.current -= 1
-          tick()
+          tick().catch(() => {})
         })
     }
   }, [concurrency])
+
+  const push = useCallback((files: File[]) => {
+    queueRef.current.push(...files)
+    tick().catch(() => {})
+  }, [tick])
 
   const reset = useCallback(() => {
     queueRef.current = []
@@ -37,4 +40,3 @@ export function useUpload(concurrency = 3) {
 
   return { push, progress, results, reset }
 }
-

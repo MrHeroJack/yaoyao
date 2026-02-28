@@ -112,7 +112,13 @@ const BioTimeline = ({
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: imgIndex * 0.1 }}
                       >
-                        <img src={image.src} alt={image.alt} className="w-full h-full object-cover" />
+                        <img
+                          src={image.src}
+                          alt={image.alt}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
                         {isAuthenticated && (
                           <button 
                             className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center font-bold shadow-md hover:bg-red-600"

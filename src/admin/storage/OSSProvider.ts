@@ -1,4 +1,3 @@
-import OSS from 'ali-oss'
 import { IStorageProvider, UploadProgress, UploadResult, UploadTaskHandle } from './IStorageProvider'
 
 async function getPolicy(dir?: string): Promise<{ accessKeyId: string; policy: string; signature: string; host: string; dir: string }> {
@@ -6,6 +5,7 @@ async function getPolicy(dir?: string): Promise<{ accessKeyId: string; policy: s
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dir }),
+    credentials: 'include',
   })
   if (!res.ok) throw new Error('Failed to get oss policy')
   return res.json()
@@ -13,27 +13,44 @@ async function getPolicy(dir?: string): Promise<{ accessKeyId: string; policy: s
 
 export class OSSProvider implements IStorageProvider {
   upload(file: File, onProgress: (p: UploadProgress) => void): { promise: Promise<UploadResult>; handle: UploadTaskHandle } {
-    let checkpoint: any
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    let _cancelled = false
-    const key = `uploads/${new Date().getFullYear()}/${(new Date().getMonth()+1).toString().padStart(2,'0')}/${crypto.randomUUID()}.${file.name.split('.').pop()}`
+    const extension = file.name.split('.').pop() || 'jpg'
+    const key = `uploads/${new Date().getFullYear()}/${(new Date().getMonth()+1).toString().padStart(2,'0')}/${crypto.randomUUID()}.${extension}`
+    let xhr: XMLHttpRequest | null = null
+    let cancelled = false
 
     const promise = (async () => {
-      const { accessKeyId, policy: _policy, signature: _signature, host, dir: _dir } = await getPolicy('uploads/')
-      const client = new OSS({
-        accessKeyId,
-        accessKeySecret: 'stub', // 使用表单直传不需要在前端持有密钥，这里仅用占位避免类型错误
-        bucket: host.split('https://')[1].split('.')[0],
-        region: host.split('https://')[1].split('.').slice(1, -2).join('.'),
-        secure: true,
-      }) as any
+      const { accessKeyId, policy, signature, host } = await getPolicy('uploads/')
 
-      await client.multipartUpload(key, file, {
-        progress: (percent: number, cp: any) => {
-          checkpoint = cp
-          onProgress({ loaded: Math.round((percent || 0) * file.size), total: file.size, percent: Math.round((percent || 0) * 100) })
-        },
-        checkpoint,
+      await new Promise<void>((resolve, reject) => {
+        xhr = new XMLHttpRequest()
+        xhr.open('POST', host, true)
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return
+          const percent = Math.round((event.loaded / event.total) * 100)
+          onProgress({ loaded: event.loaded, total: event.total, percent })
+        }
+        xhr.onerror = () => reject(new Error('OSS upload failed'))
+        xhr.onabort = () => {
+          reject(new Error(cancelled ? 'Upload cancelled' : 'Upload aborted'))
+        }
+        xhr.onload = () => {
+          if (xhr && xhr.status >= 200 && xhr.status < 300) {
+            onProgress({ loaded: file.size, total: file.size, percent: 100 })
+            resolve()
+            return
+          }
+          reject(new Error(`OSS upload failed with status ${xhr?.status || 'unknown'}`))
+        }
+
+        const formData = new FormData()
+        formData.append('key', key)
+        formData.append('policy', policy)
+        formData.append('OSSAccessKeyId', accessKeyId)
+        formData.append('Signature', signature)
+        formData.append('success_action_status', '200')
+        formData.append('file', file)
+
+        xhr.send(formData)
       })
       const url = `${host}/${key}`
       return { url, key, provider: 'oss' as const }
@@ -41,18 +58,17 @@ export class OSSProvider implements IStorageProvider {
 
     const handle: UploadTaskHandle = {
       pause: () => {
-        // ali-oss 没有直接暂停 API，可通过中断进度回调与保留 checkpoint 实现“伪暂停”
+        // OSS 表单上传不支持原生断点续传，保留接口兼容性。
       },
       resume: () => {
-        // 重新调用 multipartUpload 并传入 checkpoint 即可恢复
+        // OSS 表单上传不支持原生断点续传，保留接口兼容性。
       },
       cancel: () => {
-        _cancelled = true
-        console.log('Upload cancelled flag set to', _cancelled)
+        cancelled = true
+        xhr?.abort()
       },
     }
 
     return { promise, handle }
   }
 }
-

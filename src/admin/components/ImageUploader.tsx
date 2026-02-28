@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getProvider } from '../storage/providerFactory'
 import { UPLOAD_ALLOWED_TYPES, UPLOAD_MAX_SIZE } from '../../config/storage'
-import type { UploadProgress, UploadResult } from '../storage/IStorageProvider'
+import type { IStorageProvider, UploadProgress, UploadResult } from '../storage/IStorageProvider'
+import { resolveUploadResult } from '../storage/resolveUploadResult'
 
 interface ImageUploaderProps {
   onCompleted: (results: UploadResult[]) => void
@@ -11,10 +12,34 @@ export default function ImageUploader({ onCompleted }: ImageUploaderProps) {
   const [files, setFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
   const [progresses, setProgresses] = useState<Record<number, UploadProgress>>({})
-  const provider = useMemo(() => getProvider(), [])
+  const [provider, setProvider] = useState<IStorageProvider | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
 
+  useEffect(() => {
+    let active = true
+    getProvider()
+      .then((instance) => {
+        if (active) setProvider(instance)
+      })
+      .catch((err) => {
+        if (active) setErrorMessage((err as Error).message || '上传组件初始化失败')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      previews.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [previews])
+
   const validateFiles = (list: FileList) => {
+    setErrorMessage('')
     const result: File[] = []
     const previewUrls: string[] = []
     Array.from(list).forEach((f) => {
@@ -33,27 +58,47 @@ export default function ImageUploader({ onCompleted }: ImageUploaderProps) {
   }
 
   const startUpload = async () => {
+    if (!provider || isUploading) return
+    setIsUploading(true)
+    setErrorMessage('')
     const results: UploadResult[] = []
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const res = await provider.upload(file, (p) => {
-        setProgresses((prev) => ({ ...prev, [i]: p }))
-      }) as UploadResult
-      results.push(res)
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const task = provider.upload(file, (p) => {
+          setProgresses((prev) => ({ ...prev, [i]: p }))
+        })
+        const res = await resolveUploadResult(task)
+        results.push(res)
+      }
+      onCompleted(results)
+      setFiles([])
+      setPreviews([])
+      setProgresses({})
+      if (inputRef.current) inputRef.current.value = ''
+    } catch (err) {
+      setErrorMessage((err as Error).message || '上传失败，请重试')
+    } finally {
+      setIsUploading(false)
     }
-    onCompleted(results)
-    setFiles([])
-    setPreviews([])
-    setProgresses({})
-    inputRef.current?.value && (inputRef.current.value = '')
   }
 
   return (
     <div className="image-uploader">
       <div className="uploader-inputs">
-        <input ref={inputRef} type="file" accept="image/*" multiple onChange={onSelect} />
-        <button className="submit-button" onClick={startUpload} disabled={!files.length}>开始上传</button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          aria-label="上传图片"
+          onChange={onSelect}
+        />
+        <button className="submit-button" onClick={startUpload} disabled={!files.length || !provider || isUploading}>
+          {isUploading ? '上传中...' : '开始上传'}
+        </button>
       </div>
+      {errorMessage && <p className="text-red-500 text-sm mt-2">{errorMessage}</p>}
       {!!previews.length && (
         <div className="image-preview-list">
           {previews.map((src, idx) => (
@@ -69,4 +114,3 @@ export default function ImageUploader({ onCompleted }: ImageUploaderProps) {
     </div>
   )
 }
-

@@ -1,10 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BioTimeline from './components/BioTimeline'
-import MemoryCapsule from './components/MemoryCapsule'
-import GrowthMilestone from './components/GrowthMilestone'
 import './index.css'
-import ImageUploader from './admin/components/ImageUploader'
+import { getAdminSession, loginAdmin, logoutAdmin } from './api/admin'
+
+const MemoryCapsule = lazy(() => import('./components/MemoryCapsule'))
+const GrowthMilestone = lazy(() => import('./components/GrowthMilestone'))
+const ImageUploader = lazy(() => import('./admin/components/ImageUploader'))
 
 // 图片接口定义
 interface ImageItem {
@@ -26,15 +28,14 @@ export interface TimelineEvent {
   images: ImageItem[]
 }
 
-// 管理员密码（实际项目中应该使用更安全的认证方式）
-const ADMIN_PASSWORD = 'yaoyao2024'
-
 // 美化：增加页面加载时的渐入动画
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -20 }
 }
+
+const TIMELINE_STORAGE_KEY = 'yaoyao.timeline.events.v1'
 
 // 家庭重要时刻 - 按时间顺序排列
 const initialEvents: TimelineEvent[] = [
@@ -99,6 +100,46 @@ const INITIAL_EVENT_STATE = {
   images: [] as ImageItem[]
 }
 
+function isImageItem(value: unknown): value is ImageItem {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof (value as ImageItem).id === 'string' &&
+    typeof (value as ImageItem).src === 'string' &&
+    typeof (value as ImageItem).alt === 'string',
+  )
+}
+
+function isTimelineEvent(value: unknown): value is TimelineEvent {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof (value as TimelineEvent).id === 'string' &&
+    typeof (value as TimelineEvent).date === 'string' &&
+    typeof (value as TimelineEvent).title === 'string' &&
+    typeof (value as TimelineEvent).content === 'string' &&
+    Array.isArray((value as TimelineEvent).tags) &&
+    (value as TimelineEvent).tags.every((tag) => typeof tag === 'string') &&
+    Array.isArray((value as TimelineEvent).images) &&
+    (value as TimelineEvent).images.every(isImageItem),
+  )
+}
+
+function loadPersistedEvents() {
+  if (typeof window === 'undefined') return initialEvents
+  const raw = window.localStorage.getItem(TIMELINE_STORAGE_KEY)
+  if (!raw) return initialEvents
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every(isTimelineEvent)) {
+      return parsed
+    }
+  } catch {
+    // Ignore corrupted local cache and use defaults.
+  }
+  return initialEvents
+}
+
 function AuthModal({
   isOpen, 
   onClose, 
@@ -106,21 +147,29 @@ function AuthModal({
 }: { 
   isOpen: boolean
   onClose: () => void
-  onAuth: () => void 
+  onAuth: (password: string) => Promise<void> 
 }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      onAuth()
-      setPassword('')
+    if (!password.trim()) {
+      setError('请输入密码')
+      return
+    }
+    try {
+      setIsSubmitting(true)
+      await onAuth(password)
       setError('')
       onClose()
-    } else {
-      setError('密码错误，请重试')
       setPassword('')
+    } catch (err) {
+      setError((err as Error).message || '登录失败，请重试')
+      setPassword('')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -154,6 +203,7 @@ function AuthModal({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入密码"
                 className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-z-blue focus:outline-none focus:ring-4 focus:ring-z-blue/20 text-lg"
+                aria-label="管理员密码"
                 autoFocus
               />
               {error && <div className="text-red-500 text-center font-bold bg-red-100 p-2 rounded-lg">{error}</div>}
@@ -167,9 +217,10 @@ function AuthModal({
                 </button>
                 <button 
                   type="submit" 
+                  disabled={isSubmitting}
                   className="flex-1 py-3 rounded-full bg-z-blue text-white font-bold shadow-lg hover:bg-blue-600 transition-colors transform active:scale-95"
                 >
-                  确认
+                  {isSubmitting ? '验证中...' : '确认'}
                 </button>
               </div>
             </form>
@@ -181,9 +232,10 @@ function AuthModal({
 }
 
 export default function App() {
-  const [events, setEvents] = useState<TimelineEvent[]>(initialEvents)
+  const [events, setEvents] = useState<TimelineEvent[]>(() => loadPersistedEvents())
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [showAddEventForm, setShowAddEventForm] = useState(false)
   const [newEvent, setNewEvent] = useState(() => ({ ...INITIAL_EVENT_STATE }))
   const [newImageLink, setNewImageLink] = useState('')
@@ -192,7 +244,9 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'timeline' | 'capsule' | 'milestone'>('timeline')
+  const [dataMessage, setDataMessage] = useState('')
   const logoutTimer = useRef<number | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
 
   const clearLogoutTimer = () => {
     if (logoutTimer.current) {
@@ -207,19 +261,53 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    getAdminSession()
+      .then((session) => {
+        if (!active) return
+        if (session.authenticated) {
+          clearLogoutTimer()
+          setIsAuthenticated(true)
+          logoutTimer.current = window.setTimeout(() => {
+            setIsAuthenticated(false)
+            setShowAddEventForm(false)
+            setEditingEventId(null)
+            resetNewEvent()
+          }, 30 * 60 * 1000)
+        }
+      })
+      .finally(() => {
+        if (active) setIsCheckingSession(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(TIMELINE_STORAGE_KEY, JSON.stringify(events))
+  }, [events])
+
   const resetNewEvent = () => {
     setNewEvent({ ...INITIAL_EVENT_STATE })
     setNewImageLink('')
   }
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(async () => {
     clearLogoutTimer()
     setIsAuthenticated(false)
     setIsAuthModalOpen(false)
     setShowAddEventForm(false)
     setEditingEventId(null)
     resetNewEvent()
-  }
+    try {
+      await logoutAdmin()
+    } catch {
+      // Ignore logout network failures and keep local state consistent.
+    }
+  }, [])
 
   const handleAddImageLink = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -255,18 +343,58 @@ export default function App() {
     )
   }
 
-  const handleAuth = () => {
+  const handleAuth = useCallback(async (password: string) => {
+    await loginAdmin(password)
     clearLogoutTimer()
     setIsAuthenticated(true)
     setIsAuthModalOpen(false)
-    // 在实际应用中，这里应该设置一个过期时间
     logoutTimer.current = window.setTimeout(() => {
       setIsAuthenticated(false)
       setShowAddEventForm(false)
       setEditingEventId(null)
       resetNewEvent()
-    }, 30 * 60 * 1000) // 30分钟后自动退出
-  }
+    }, 30 * 60 * 1000)
+  }, [])
+
+  const exportEvents = useCallback(() => {
+    const payload = JSON.stringify(events, null, 2)
+    const blob = new Blob([payload], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `yaoyao-events-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    setDataMessage('事件已导出为 JSON 文件')
+  }, [events])
+
+  const importEvents = useCallback(async (file: File) => {
+    const text = await file.text()
+    const parsed = JSON.parse(text)
+    if (!Array.isArray(parsed) || !parsed.every(isTimelineEvent)) {
+      throw new Error('文件格式无效，请选择合法的事件 JSON')
+    }
+    setEvents(parsed)
+    setDataMessage(`已导入 ${parsed.length} 条事件`)
+  }, [])
+
+  const handleImportClick = useCallback(() => {
+    importInputRef.current?.click()
+  }, [])
+
+  const handleImportFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      await importEvents(file)
+    } catch (err) {
+      setDataMessage((err as Error).message || '导入失败')
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }, [importEvents])
 
   const handleAddEvent = () => {
     if (!isAuthenticated) {
@@ -427,7 +555,10 @@ export default function App() {
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => isAuthenticated ? handleLogout() : setIsAuthModalOpen(true)}
+                onClick={() => isAuthenticated ? void handleLogout() : setIsAuthModalOpen(true)}
+                aria-label={isAuthenticated ? '退出管理员' : '管理员登录'}
+                data-testid="admin-auth-toggle"
+                disabled={isCheckingSession}
                 className={`ml-4 w-12 h-12 rounded-full border-4 flex items-center justify-center shadow-md transition-colors ${
                   isAuthenticated 
                     ? 'bg-red-500 border-red-300 text-white' 
@@ -499,6 +630,36 @@ export default function App() {
                       />
                     </div>
                  </div>
+
+                 {isAuthenticated && (
+                   <div className="z-card p-4 flex flex-col md:flex-row md:items-center gap-3 bg-blue-50 border-blue-200">
+                     <div className="text-slate-600 text-sm md:text-base">数据工具</div>
+                     <div className="flex gap-2 flex-wrap">
+                       <button
+                         type="button"
+                         onClick={exportEvents}
+                         className="px-4 py-2 rounded-xl bg-white border-2 border-blue-200 text-blue-700 font-bold hover:bg-blue-100 transition-colors"
+                       >
+                         导出事件 JSON
+                       </button>
+                       <button
+                         type="button"
+                         onClick={handleImportClick}
+                         className="px-4 py-2 rounded-xl bg-white border-2 border-blue-200 text-blue-700 font-bold hover:bg-blue-100 transition-colors"
+                       >
+                         导入事件 JSON
+                       </button>
+                       <input
+                         ref={importInputRef}
+                         type="file"
+                         accept="application/json"
+                         className="hidden"
+                         onChange={handleImportFileChange}
+                       />
+                     </div>
+                     {dataMessage && <span className="text-sm text-slate-500">{dataMessage}</span>}
+                   </div>
+                 )}
 
                  {/* 管理员添加按钮 */}
                  {isAuthenticated && !showAddEventForm && (
@@ -602,12 +763,18 @@ export default function App() {
 
                           {isAuthenticated && (
                             <div className="mb-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-100">
-                              <ImageUploader
-                                onCompleted={(results) => {
-                                  const uploadedImages = results.map(r => ({ id: Date.now().toString() + Math.random(), src: r.url, alt: '事件图片' }))
-                                  setNewEvent(prev => ({ ...prev, images: [...prev.images, ...uploadedImages] }))
-                                }}
-                              />
+                              <Suspense fallback={<div className="text-slate-500">上传组件加载中...</div>}>
+                                <ImageUploader
+                                  onCompleted={(results) => {
+                                    const uploadedImages = results.map((r) => ({
+                                      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                                      src: r.url,
+                                      alt: '事件图片'
+                                    }))
+                                    setNewEvent((prev) => ({ ...prev, images: [...prev.images, ...uploadedImages] }))
+                                  }}
+                                />
+                              </Suspense>
                             </div>
                           )}
 
@@ -615,7 +782,13 @@ export default function App() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                               {newEvent.images.map(img => (
                                 <div key={img.id} className="relative group aspect-video rounded-xl overflow-hidden border-4 border-white shadow-md transform hover:scale-105 transition-transform">
-                                  <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
+                                  <img
+                                    src={img.src}
+                                    alt={img.alt}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-full object-cover"
+                                  />
                                   <button 
                                     type="button" 
                                     className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-bold shadow-md"
@@ -664,36 +837,38 @@ export default function App() {
                     <h2 className="text-4xl font-bold mb-2 text-z-purple">💊 时光胶囊</h2>
                     <p className="text-slate-600 text-xl">封存珍贵的记忆瞬间</p>
                  </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <MemoryCapsule 
-                      title="第一次微笑"
-                      date="2024-04-15"
-                      content="宝宝今天第一次对我们露出了甜甜的微笑，那一刻我的心都融化了。"
-                      images={[
-                        { id: '1', src: 'https://placehold.co/300x200/9D4EDD/FFFFFF?text=Smile+1', alt: '宝宝微笑1' },
-                        { id: '2', src: 'https://placehold.co/300x200/FF9E00/FFFFFF?text=Smile+2', alt: '宝宝微笑2' }
-                      ]}
-                      isAuthenticated={isAuthenticated}
-                    />
-                    <MemoryCapsule 
-                      title="第一次翻身"
-                      date="2024-06-20"
-                      content="宝宝今天成功地翻了个身，从趴着变成了仰卧，进步真大！"
-                      images={[
-                        { id: '3', src: 'https://placehold.co/300x200/FFB6C1/0B132B?text=Roll+Over', alt: '宝宝翻身' }
-                      ]}
-                      isAuthenticated={isAuthenticated}
-                    />
-                    <MemoryCapsule 
-                      title="第一次叫妈妈"
-                      date="2024-10-10"
-                      content="宝宝今天清晰地叫出了一声'妈妈'，激动得我眼泪都出来了。"
-                      images={[
-                        { id: '4', src: 'https://placehold.co/300x200/0B132B/9D4EDD?text=First+Word', alt: '宝宝说话' }
-                      ]}
-                      isAuthenticated={isAuthenticated}
-                    />
-                 </div>
+                 <Suspense fallback={<div className="text-slate-500 text-center py-8">内容加载中...</div>}>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <MemoryCapsule
+                        title="第一次微笑"
+                        date="2024-04-15"
+                        content="宝宝今天第一次对我们露出了甜甜的微笑，那一刻我的心都融化了。"
+                        images={[
+                          { id: '1', src: 'https://placehold.co/300x200/9D4EDD/FFFFFF?text=Smile+1', alt: '宝宝微笑1' },
+                          { id: '2', src: 'https://placehold.co/300x200/FF9E00/FFFFFF?text=Smile+2', alt: '宝宝微笑2' }
+                        ]}
+                        isAuthenticated={isAuthenticated}
+                      />
+                      <MemoryCapsule
+                        title="第一次翻身"
+                        date="2024-06-20"
+                        content="宝宝今天成功地翻了个身，从趴着变成了仰卧，进步真大！"
+                        images={[
+                          { id: '3', src: 'https://placehold.co/300x200/FFB6C1/0B132B?text=Roll+Over', alt: '宝宝翻身' }
+                        ]}
+                        isAuthenticated={isAuthenticated}
+                      />
+                      <MemoryCapsule
+                        title="第一次叫妈妈"
+                        date="2024-10-10"
+                        content="宝宝今天清晰地叫出了一声'妈妈'，激动得我眼泪都出来了。"
+                        images={[
+                          { id: '4', src: 'https://placehold.co/300x200/0B132B/9D4EDD?text=First+Word', alt: '宝宝说话' }
+                        ]}
+                        isAuthenticated={isAuthenticated}
+                      />
+                   </div>
+                 </Suspense>
               </div>
             )}
 
@@ -703,32 +878,34 @@ export default function App() {
                     <h2 className="text-4xl font-bold mb-2 text-blue-600">🏆 成长里程碑</h2>
                     <p className="text-slate-600 text-xl">记录每一个成长的脚印</p>
                  </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <GrowthMilestone 
-                    title="身高成长"
-                    currentValue={75}
-                    targetValue={85}
-                    unit="cm"
-                    color="#9D4EDD"
-                    icon="📏"
-                  />
-                  <GrowthMilestone 
-                    title="体重增长"
-                    currentValue={9.5}
-                    targetValue={12}
-                    unit="kg"
-                    color="#FF9E00"
-                    icon="⚖️"
-                  />
-                  <GrowthMilestone 
-                    title="语言发展"
-                    currentValue={25}
-                    targetValue={50}
-                    unit="词汇"
-                    color="#FFB6C1"
-                    icon="💬"
-                  />
-                </div>
+                <Suspense fallback={<div className="text-slate-500 text-center py-8">内容加载中...</div>}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <GrowthMilestone
+                      title="身高成长"
+                      currentValue={75}
+                      targetValue={85}
+                      unit="cm"
+                      color="#9D4EDD"
+                      icon="📏"
+                    />
+                    <GrowthMilestone
+                      title="体重增长"
+                      currentValue={9.5}
+                      targetValue={12}
+                      unit="kg"
+                      color="#FF9E00"
+                      icon="⚖️"
+                    />
+                    <GrowthMilestone
+                      title="语言发展"
+                      currentValue={25}
+                      targetValue={50}
+                      unit="词汇"
+                      color="#FFB6C1"
+                      icon="💬"
+                    />
+                  </div>
+                </Suspense>
               </div>
             )}
           </motion.div>

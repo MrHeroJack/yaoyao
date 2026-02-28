@@ -1,12 +1,25 @@
 import { ACTIVE_PROVIDER } from '../../config/storage'
-import { IStorageProvider } from './IStorageProvider'
-import { QiniuProvider } from './QiniuProvider'
-import { OSSProvider } from './OSSProvider'
-import { LinkOnlyProvider } from './LinkOnlyProvider'
+import type { IStorageProvider } from './IStorageProvider'
 
-export function getProvider(): IStorageProvider {
-  if (ACTIVE_PROVIDER === 'qiniu') return new QiniuProvider()
-  if (ACTIVE_PROVIDER === 'oss') return new OSSProvider()
-  return new LinkOnlyProvider()
+let providerPromise: Promise<IStorageProvider> | null = null
+
+export async function getProvider(): Promise<IStorageProvider> {
+  if (providerPromise) return providerPromise
+
+  providerPromise = (async () => {
+    if (ACTIVE_PROVIDER === 'qiniu') {
+      const mod = await import('./QiniuProvider')
+      return new mod.QiniuProvider()
+    }
+
+    if (ACTIVE_PROVIDER === 'oss') {
+      const mod = await import('./OSSProvider')
+      return new mod.OSSProvider()
+    }
+
+    const mod = await import('./LinkOnlyProvider')
+    return new mod.LinkOnlyProvider()
+  })()
+
+  return providerPromise
 }
-

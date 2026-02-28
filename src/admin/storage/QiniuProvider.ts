@@ -7,6 +7,7 @@ async function getUploadToken(key?: string): Promise<{ uploadToken: string; scop
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
+    credentials: 'include',
   })
   if (!res.ok) throw new Error('Failed to get qiniu token')
   return res.json()
@@ -14,7 +15,8 @@ async function getUploadToken(key?: string): Promise<{ uploadToken: string; scop
 
 export class QiniuProvider implements IStorageProvider {
   upload(file: File, onProgress: (p: UploadProgress) => void): { promise: Promise<UploadResult>; handle: UploadTaskHandle } {
-    const key = `uploads/${new Date().getFullYear()}/${(new Date().getMonth()+1).toString().padStart(2,'0')}/${crypto.randomUUID()}.${file.name.split('.').pop()}`
+    const extension = file.name.split('.').pop() || 'jpg'
+    const key = `uploads/${new Date().getFullYear()}/${(new Date().getMonth()+1).toString().padStart(2,'0')}/${crypto.randomUUID()}.${extension}`
     let paused = false
     let cancelled = false
     let sub: any
@@ -39,8 +41,9 @@ export class QiniuProvider implements IStorageProvider {
           complete: () => resolve(),
         })
       })
-      // 七牛公开域名需在后端或配置中提供，这里仅返回 key
-      return { url: key, key, provider: 'qiniu' as const }
+      const baseUrl = (import.meta.env.VITE_QINIU_PUBLIC_URL || '').replace(/\/+$/, '')
+      const url = baseUrl ? `${baseUrl}/${key}` : key
+      return { url, key, provider: 'qiniu' as const }
     })()
 
     const handle: UploadTaskHandle = {
@@ -63,4 +66,3 @@ export class QiniuProvider implements IStorageProvider {
     return { promise, handle }
   }
 }
-
