@@ -20,7 +20,7 @@ GET `/api/storage/providers`
 ## 七牛云上传签名
 POST `/api/upload/qiniu/token`
 - 请求体：`{ key: string, expires?: number }`
-- 响应：`{ uploadToken, scope }`
+- 响应：`{ uploadToken, scope, region, publicBaseUrl }`
 - 鉴权：需要管理员登录态（HttpOnly Cookie）
 
 ## 阿里云OSS表单策略

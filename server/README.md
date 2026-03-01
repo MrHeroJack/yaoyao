@@ -20,7 +20,7 @@ npx tsx server/index.ts
 - `POST /api/admin/logout`：管理员登出，清除会话 Cookie
 - `GET /api/admin/me`：查看当前会话是否已认证
 - `GET /api/storage/providers`：返回可用的存储提供者
-- `POST /api/upload/qiniu/token`：生成七牛云 `uploadToken`（需管理员会话）
+- `POST /api/upload/qiniu/token`：生成七牛云 `uploadToken`（返回 `region/publicBaseUrl`，需管理员会话）
 - `POST /api/upload/oss/policy`：生成 OSS 表单直传 `policy` 与 `signature`（需管理员会话）
 - `GET /api/images`：列举图片（需管理员会话，默认关闭，`MOCK_UPLOAD=true` 时返回空集合）
 - `DELETE /api/images/:key`：删除图片（需管理员会话，默认关闭，`MOCK_UPLOAD=true` 时返回成功）

@@ -7,12 +7,17 @@ export function getQiniuUploadToken(opts: {
   key: string
   expires?: number
 }) {
-  const mac = new qiniu.auth.digest.Mac(opts.accessKey, opts.secretKey)
+  const accessKey = opts.accessKey.trim()
+  const secretKey = opts.secretKey.trim()
+  const bucket = opts.bucket.trim()
+  const key = opts.key.trim()
+  const scope = `${bucket}:${key}`
+  const mac = new qiniu.auth.digest.Mac(accessKey, secretKey)
   const putPolicy = new qiniu.rs.PutPolicy({
-    scope: `${opts.bucket}:${opts.key}`,
+    scope,
     expires: opts.expires ?? 3600,
     deleteAfterDays: 0,
   })
   const uploadToken = putPolicy.uploadToken(mac)
-  return { uploadToken, scope: putPolicy.options.scope }
+  return { uploadToken, scope }
 }

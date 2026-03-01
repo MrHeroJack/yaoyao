@@ -36,6 +36,11 @@ const pageVariants = {
 }
 
 const TIMELINE_STORAGE_KEY = 'yaoyao.timeline.events.v1'
+const QINIU_PUBLIC_BASE_URL = (import.meta.env.VITE_QINIU_PUBLIC_URL || '').trim().replace(/\/+$/, '')
+const STORAGE_PROVIDER = (import.meta.env.VITE_STORAGE_PROVIDER || '').trim()
+const SHOULD_PROXY_QINIU_ASSETS =
+  STORAGE_PROVIDER === 'qiniu' &&
+  (!QINIU_PUBLIC_BASE_URL || /qiniucs\.com/i.test(QINIU_PUBLIC_BASE_URL))
 
 // 家庭重要时刻 - 按时间顺序排列
 const initialEvents: TimelineEvent[] = [
@@ -110,6 +115,37 @@ function isImageItem(value: unknown): value is ImageItem {
   )
 }
 
+function normalizeImageSrc(src: string) {
+  const value = src.trim()
+  if (!value) return value
+
+  const qiniuS3Match = value.match(/^https?:\/\/[^/]*qiniucs\.com\/(.+)$/i)
+
+  // Already absolute or browser-local URL.
+  if (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('//') ||
+    value.startsWith('data:') ||
+    value.startsWith('blob:')
+  ) {
+    if (SHOULD_PROXY_QINIU_ASSETS && qiniuS3Match?.[1]?.startsWith('uploads/')) {
+      return `/api/upload/qiniu/public/${qiniuS3Match[1].replace(/^\/+/, '')}`
+    }
+    return value
+  }
+
+  // Migrate historical "uploads/..." keys to full Qiniu URL.
+  if (value.startsWith('uploads/')) {
+    if (SHOULD_PROXY_QINIU_ASSETS) {
+      return `/api/upload/qiniu/public/${value.replace(/^\/+/, '')}`
+    }
+    return QINIU_PUBLIC_BASE_URL ? `${QINIU_PUBLIC_BASE_URL}/${value}` : value
+  }
+
+  return value
+}
+
 function isTimelineEvent(value: unknown): value is TimelineEvent {
   return Boolean(
     value &&
@@ -132,7 +168,13 @@ function loadPersistedEvents() {
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed) && parsed.every(isTimelineEvent)) {
-      return parsed
+      return parsed.map((event) => ({
+        ...event,
+        images: event.images.map((image) => ({
+          ...image,
+          src: normalizeImageSrc(image.src),
+        })),
+      }))
     }
   } catch {
     // Ignore corrupted local cache and use defaults.
@@ -315,7 +357,7 @@ export default function App() {
 
     const newImage: ImageItem = {
       id: Date.now().toString(),
-      src: newImageLink,
+      src: normalizeImageSrc(newImageLink),
       alt: '事件图片'
     }
 
@@ -415,7 +457,10 @@ export default function App() {
       content: newEvent.content,
       tags: sanitizedTags,
       isHighlight: newEvent.isHighlight,
-      images: newEvent.images
+      images: newEvent.images.map((image) => ({
+        ...image,
+        src: normalizeImageSrc(image.src),
+      }))
     }
     
     if (editingEventId) {
@@ -768,7 +813,7 @@ export default function App() {
                                   onCompleted={(results) => {
                                     const uploadedImages = results.map((r) => ({
                                       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                                      src: r.url,
+                                      src: normalizeImageSrc(r.url),
                                       alt: '事件图片'
                                     }))
                                     setNewEvent((prev) => ({ ...prev, images: [...prev.images, ...uploadedImages] }))

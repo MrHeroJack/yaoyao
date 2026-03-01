@@ -105,6 +105,28 @@ yaoyao/
 - 使用 Framer Motion 实现流畅动画
 - 通过 Vite 实现快速热重载
 
+## 七牛配置（推荐）
+
+项目已支持七牛上传，最少需要配置以下环境变量：
+
+- `VITE_STORAGE_PROVIDER=qiniu`
+- `QINIU_ACCESS_KEY`
+- `QINIU_SECRET_KEY`
+- `QINIU_BUCKET`
+- `QINIU_REGION`（`z0/z1/z2/na0/as0`）
+- `QINIU_PUBLIC_URL`（公开访问域名，必须带 `https://`）
+
+如果你在 Vercel 部署，可使用：
+
+```bash
+npx vercel env add VITE_STORAGE_PROVIDER production
+npx vercel env add QINIU_ACCESS_KEY production
+npx vercel env add QINIU_SECRET_KEY production
+npx vercel env add QINIU_BUCKET production
+npx vercel env add QINIU_REGION production
+npx vercel env add QINIU_PUBLIC_URL production
+```
+
 ## 📄 许可证
 
 本项目仅供个人和家庭使用。

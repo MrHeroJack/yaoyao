@@ -58,6 +58,30 @@ function normalizeUploadDir(dir: unknown) {
   return normalized.endsWith('/') ? normalized : `${normalized}/`
 }
 
+function normalizeBaseUrl(value: string | undefined) {
+  return (value || '').trim().replace(/\/+$/, '')
+}
+
+function buildQiniuSourceBaseUrl() {
+  return normalizeBaseUrl(process.env.QINIU_SOURCE_URL || process.env.QINIU_PUBLIC_URL)
+}
+
+function buildQiniuDeliveryBaseUrl() {
+  const publicBaseUrl = normalizeBaseUrl(process.env.QINIU_PUBLIC_URL)
+  if (!publicBaseUrl) return ''
+  // HTTPS 页面无法安全加载 HTTP 资源，自动走服务端代理路径。
+  if (publicBaseUrl.startsWith('http://')) return '/api/upload/qiniu/public'
+  return publicBaseUrl
+}
+
+function encodeStorageKey(key: string) {
+  return key
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+}
+
 function setSessionCookie(res: express.Response, token: string, maxAgeSeconds: number) {
   const isProd = process.env.NODE_ENV === 'production'
   const cookie = [
@@ -131,26 +155,24 @@ app.get('/api/admin/me', (req, res) => {
 })
 
 app.get('/api/storage/providers', (_req, res) => {
+  const qiniuAccessKey = (process.env.QINIU_ACCESS_KEY || '').trim()
+  const qiniuSecretKey = (process.env.QINIU_SECRET_KEY || '').trim()
+  const qiniuBucket = (process.env.QINIU_BUCKET || '').trim()
+  const ossAccessKeyId = (process.env.ALI_ACCESS_KEY_ID || '').trim()
+  const ossAccessKeySecret = (process.env.ALI_ACCESS_KEY_SECRET || '').trim()
+  const ossBucket = (process.env.ALI_OSS_BUCKET || '').trim()
+  const ossRegion = (process.env.ALI_OSS_REGION || '').trim()
   const providers: Array<{ key: string; name: string; available: boolean }> = [
     { key: 'link-only', name: '链接模式', available: true },
     {
       key: 'qiniu',
       name: '七牛云',
-      available: !!(
-        process.env.QINIU_ACCESS_KEY &&
-        process.env.QINIU_SECRET_KEY &&
-        process.env.QINIU_BUCKET
-      ),
+      available: !!(qiniuAccessKey && qiniuSecretKey && qiniuBucket),
     },
     {
       key: 'oss',
       name: '阿里云OSS',
-      available: !!(
-        process.env.ALI_ACCESS_KEY_ID &&
-        process.env.ALI_ACCESS_KEY_SECRET &&
-        process.env.ALI_OSS_BUCKET &&
-        process.env.ALI_OSS_REGION
-      ),
+      available: !!(ossAccessKeyId && ossAccessKeySecret && ossBucket && ossRegion),
     },
   ]
   res.json({ providers })
@@ -159,22 +181,61 @@ app.get('/api/storage/providers', (_req, res) => {
 app.post('/api/upload/qiniu/token', requireAdmin, async (req, res) => {
   try {
     const { key, expires = 3600 } = req.body || {}
+    const accessKey = (process.env.QINIU_ACCESS_KEY || '').trim()
+    const secretKey = (process.env.QINIU_SECRET_KEY || '').trim()
+    const bucket = (process.env.QINIU_BUCKET || '').trim()
     if (typeof key !== 'string' || !key.startsWith('uploads/')) {
       return res.status(400).json({ error: 'Invalid key' })
     }
-    if (!process.env.QINIU_ACCESS_KEY || !process.env.QINIU_SECRET_KEY || !process.env.QINIU_BUCKET) {
+    if (!accessKey || !secretKey || !bucket) {
       return res.status(400).json({ error: 'Qiniu environment not configured' })
     }
     const { uploadToken, scope } = getQiniuUploadToken({
       key,
       expires: clampNumber(expires, 60, 3600, 600),
-      bucket: process.env.QINIU_BUCKET!,
-      accessKey: process.env.QINIU_ACCESS_KEY!,
-      secretKey: process.env.QINIU_SECRET_KEY!,
+      bucket,
+      accessKey,
+      secretKey,
     })
-    res.json({ uploadToken, scope })
+    const region = (process.env.QINIU_REGION || 'z0').trim()
+    const publicBaseUrl = buildQiniuDeliveryBaseUrl()
+    res.json({ uploadToken, scope, region, publicBaseUrl })
   } catch (err) {
+    console.error('Failed to generate Qiniu token:', err)
     res.status(500).json({ error: 'Failed to generate Qiniu token' })
+  }
+})
+
+app.get(/^\/api\/upload\/qiniu\/public\/(.+)$/, async (req, res) => {
+  try {
+    const key = decodeURIComponent(req.params[0] || '').replace(/^\/+/, '')
+    if (!key.startsWith('uploads/')) {
+      return res.status(400).json({ error: 'Invalid key' })
+    }
+
+    const sourceBaseUrl = buildQiniuSourceBaseUrl()
+    if (!sourceBaseUrl) {
+      return res.status(500).json({ error: 'Qiniu public URL is not configured' })
+    }
+
+    const sourceUrl = `${sourceBaseUrl}/${encodeStorageKey(key)}`
+    const upstream = await fetch(sourceUrl)
+    if (!upstream.ok) {
+      const upstreamBody = await upstream.text()
+      return res.status(upstream.status).send(upstreamBody)
+    }
+
+    const headersToForward = ['content-type', 'cache-control', 'etag', 'last-modified'] as const
+    for (const header of headersToForward) {
+      const value = upstream.headers.get(header)
+      if (value) res.setHeader(header, value)
+    }
+
+    const body = Buffer.from(await upstream.arrayBuffer())
+    return res.status(200).send(body)
+  } catch (err) {
+    console.error('Failed to proxy Qiniu image:', err)
+    return res.status(500).json({ error: 'Failed to fetch Qiniu image' })
   }
 })
 
